@@ -153,6 +153,7 @@ Shader "#NVJOB/Water Shaders V2/Water Surface(URP)"
                 inputData.viewDirectionWS = IN.viewDir;
 
                 half4 color = UniversalFragmentBlinnPhong(inputData, surfaceData);
+                color.a = 0.1;
                 return color;
             }
             ENDHLSL

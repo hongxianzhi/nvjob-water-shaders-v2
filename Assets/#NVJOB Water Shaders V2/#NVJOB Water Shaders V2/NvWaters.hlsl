@@ -97,6 +97,7 @@ CBUFFER_END
 //定义 Attributes 结构体
 struct Attributes
 {
+    float4 positionOS : POSITION;
     float4 vertex : POSITION;
     float3 normal : NORMAL;
     float2 uv : TEXCOORD0;
@@ -123,6 +124,9 @@ inline float3 UnityObjectToViewPos(in float3 pos)
 Varyings WaterVertex(Attributes input)
 {
     Varyings output = (Varyings)0;
+    UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+    VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
+    output.positionCS = vertexInput.positionCS;
     output.eyeDepth = -UnityObjectToViewPos(input.vertex).z;
     return output;
 }

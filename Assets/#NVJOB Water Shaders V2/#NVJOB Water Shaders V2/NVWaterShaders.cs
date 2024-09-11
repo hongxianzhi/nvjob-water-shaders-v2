@@ -71,7 +71,7 @@ public class NVWaterShaders : MonoBehaviour
     {
         //--------------
 
-        if (mirrorOn == true) MirrorReflection();
+        //if (mirrorOn == true) MirrorReflection();
 
         //--------------
     }
