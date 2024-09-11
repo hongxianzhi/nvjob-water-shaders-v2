@@ -5,7 +5,7 @@
 // Support this asset - https://nvjob.github.io/donate
 
 
-Shader "#NVJOB/Water Shaders V2/Water Surface(URP)"
+Shader "#NVJOB/Water Shaders V2/Water Specular(URP)"
 {
     Properties
     {
@@ -16,13 +16,13 @@ Shader "#NVJOB/Water Shaders V2/Water Surface(URP)"
         [HideInInspector]_Albedo2Flow ("Albedo 2 Flow", float) = 1
         [HideInInspector]_AlbedoIntensity ("Brightness", Range(0.1, 5)) = 1
         [HideInInspector]_AlbedoContrast ("Contrast", Range(-0.5, 3)) = 1
-        [HideInInspector]_Glossiness ("Glossiness", Range(0, 1)) = 0.5
-        [HideInInspector]_Metallic ("Metallic", Range(-1, 2)) = 0.0
+        [HideInInspector]_Shininess ("Shininess", Range(0.01, 1)) = 0.15
+        [HideInInspector][HDR]_SpecColor ("Specular Color", Color) = (0.086, 0.086, 0.086, 1)
         [HideInInspector]_SoftFactor ("Soft Factor", Range(0.0001, 1)) = 0.5
         [HideInInspector]_NormalMap1 ("Normal Map 1", 2D) = "bump" { }
         [HideInInspector]_NormalMap1Strength ("Normal Map 1 Strength", Range(0.001, 10)) = 1
         [HideInInspector][NoScaleOffset]_NormalMap2 ("Normal Map 2", 2D) = "bump" { }
-        [HideInInspector]_NormalMap2Tiling ("Normal Map 2 Tiling", float) = 1.2
+        [HideInInspector]_NormalMap2Tiling ("Normal Map 2 Tiling", float) = 0.7
         [HideInInspector]_NormalMap2Strength ("Normal Map 2 Strength", Range(0.001, 10)) = 1
         [HideInInspector]_NormalMap2Flow ("Normal Map 2 Flow", float) = 0.5
         [HideInInspector]_MicrowaveScale ("Micro Waves Scale", Range(0.5, 10)) = 1
@@ -35,6 +35,11 @@ Shader "#NVJOB/Water Shaders V2/Water Surface(URP)"
         [HideInInspector]_ParallaxNoiseFrequency ("Parallax Noise Frequency", Range(0.0, 6.0)) = 1
         [HideInInspector]_ParallaxNoiseScale ("Parallax Noise Scale", Float) = 1
         [HideInInspector]_ParallaxNoiseLacunarity ("Parallax Noise Lacunarity", Range(1, 6)) = 4
+        [HideInInspector]_ReflectionCube ("Reflection Cubemap", Cube) = "" { }
+        [HideInInspector][HDR]_ReflectionColor ("Reflection Color", Color) = (0.28, 0.29, 0.25, 0.5)
+        [HideInInspector]_ReflectionStrength ("Reflection Strength", Range(0, 10)) = 0.15
+        [HideInInspector]_ReflectionSaturation ("Reflection Saturation", Range(0, 5)) = 1
+        [HideInInspector]_ReflectionContrast ("Reflection Contrast", Range(0, 5)) = 1
         [HideInInspector][HDR]_MirrorColor ("Mirror Reflection Color", Color) = (1, 1, 1, 0.5)
         [HideInInspector]_MirrorDepthColor ("Mirror Reflection Depth Color", Color) = (0, 0, 0, 0.5)
         [HideInInspector]_MirrorStrength ("Reflection Strength", Range(0, 5)) = 1
@@ -58,15 +63,13 @@ Shader "#NVJOB/Water Shaders V2/Water Surface(URP)"
 
     SubShader
     {
-        Tags { "Queue" = "Geometry+800" "IgnoreProjector" = "True" "RenderType" = "Transparent" "ForceNoShadowCasting" = "True" }
+        Tags { "Queue" = "Geometry+800" "IgnoreProjector" = "True" "RenderType" = "Transparent" }
         LOD 200
         Cull Off
         ZWrite On
 
         Pass
         {
-            Name "FORWARD"
-
             HLSLPROGRAM
             #pragma vertex WaterVertex
             #pragma fragment WaterFragment
@@ -75,17 +78,13 @@ Shader "#NVJOB/Water Shaders V2/Water Surface(URP)"
             #pragma shader_feature_local EFFECT_NORMALMAP2
             #pragma shader_feature_local EFFECT_MICROWAVE
             #pragma shader_feature_local EFFECT_PARALLAX
+            #pragma shader_feature_local EFFECT_REFLECTION
             #pragma shader_feature_local EFFECT_MIRROR
             #pragma shader_feature_local EFFECT_FOAM
-            #pragma Standard alpha:fade noshadowmask noshadow
+            #pragma BlinnPhong alpha:fade exclude_path:prepass noshadowmask noshadow
             #pragma target 3.0
-
-            //----------------------------------------------
-
+    
             #include "NvWaters.hlsl"
-
-            //----------------------------------------------
-
             half4 WaterFragment(Varyings IN) : SV_Target
             {
                 SurfaceData surfaceData = (SurfaceData)0;
@@ -107,43 +106,44 @@ Shader "#NVJOB/Water Shaders V2/Water Surface(URP)"
                         uvnd.xy += float2(_NvWatersMovement.z, _NvWatersMovement.w) * _NormalMap2Flow;
                     #endif
                 #endif
-
+    
                 float2 uv = IN.uv_AlbedoTex1;
                 uv.xy += float2(_NvWatersMovement.x, _NvWatersMovement.y);
                 #ifdef EFFECT_ALBEDO2
                     float2 uvd = IN.uv_AlbedoTex1;
                     uvd.xy += float2(_NvWatersMovement.x, _NvWatersMovement.y) * _Albedo2Flow;
                 #endif
-
+    
                 float4 tex = tex2D(_AlbedoTex1, uv) * _AlbedoColor;
                 #ifdef EFFECT_ALBEDO2
                     tex *= tex2D(_AlbedoTex2, uvd * _Albedo2Tiling);
                 #endif
                 tex *= _AlbedoIntensity;
                 float3 albedo = ((tex - 0.5) * _AlbedoContrast + 0.5).rgb;
-
+    
                 float3 normal = UnpackNormal(tex2D(_NormalMap1, uvn)) * _NormalMap1Strength;
                 #ifdef EFFECT_NORMALMAP2
                     normal += UnpackNormal(tex2D(_NormalMap2, uvnd * _NormalMap2Tiling)) * _NormalMap2Strength;
                     #ifdef EFFECT_MICROWAVE
-                        normal -= UnpackNormal(tex2D(_NormalMap2, (uv + uvnd) * 2 * _MicrowaveScale)) * _MicrowaveStrength;
-                        normal = normalize(normal / 3);
-                    #else
-                        normal = normalize(normal / 2);
+                        normal += UnpackNormal(tex2D(_NormalMap2, (uv + uvnd) * 2 * _MicrowaveScale)) * _MicrowaveStrength;
                     #endif
                 #endif
-
-                #ifdef EFFECT_MIRROR
-                    surfaceData.emission = (surfaceData.emission + MirrorReflection(IN, normal)) * 0.6;
+    
+                #ifdef EFFECT_REFLECTION
+                    surfaceData.emission = SpecularReflection(IN, tex, normal);
                 #endif
-
+    
+                #ifdef EFFECT_MIRROR
+                    surfaceData.emission = (surfaceData.emission + MirrorReflection(IN, normal)) * 0.5;
+                #endif
+    
                 #ifdef EFFECT_FOAM
                     albedo = FoamFactor(IN, albedo, uvn);
                 #endif
-
+    
                 surfaceData.normalTS = normal;
-                surfaceData.metallic = _Metallic;
-                surfaceData.smoothness = _Glossiness;
+                surfaceData.smoothness = tex.a;
+                surfaceData.specular = _Shininess;
                 surfaceData.albedo = albedo;
                 surfaceData.alpha = SoftFactor(IN);
 
